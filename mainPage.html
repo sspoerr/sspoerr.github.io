@@ -1,0 +1,1913 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset='utf-8' />
+    <title>Gaze Controlled Map Game</title>
+    <link rel="shortcut icon" href="files/favicon.ico" type="image/x-icon">
+
+    <!-- ursprünglicher import
+    <link rel = "stylesheet" href = "http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css"/>
+    <script src = "http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>
+ -->
+
+    <!-- import neues stylesheet  -->
+     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css"
+   integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ=="
+   crossorigin=""/>
+
+     <!-- make sure you put this AFTER Leaflet's CSS -->
+ <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"
+   integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ=="
+   crossorigin=""></script>
+
+ <!-- -->
+
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <style>
+        .sb1 {
+  content: "";
+  width: 0px;
+  height: 0px;
+  position: absolute;
+  border-left: 10px solid #ffffff;
+  border-right: 10px solid transparent;
+  border-top: 10px solid #ffffff;
+  border-bottom: 10px solid transparent;
+  right: -20px;
+  top: 6px;
+}
+    </style>
+</head>
+
+
+
+    <!--- Map box is one of the map option, you can choice any API that fits your needs  --->
+
+    <!-- <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.4.1/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.4.1/mapbox-gl.css' rel='stylesheet' />-->
+
+
+
+<body style="background-color:darkgrey;overflow-y:hidden;">
+
+<!-- TODO: how to make the person load first because we need her first?
+<div id="person">
+<img id="bodyoftheperson" src="files/color2.png" alt="bodyoftheperson" style="position:absolute;bottom:100px;right:100px">
+<img id="eyes" src="files/blue.png" alt="eyes" style="position:absolute;bottom:100px;right:100px">
+<svg id="clothes" height="256" width="256" style="position:absolute;bottom:100px;right:100px">
+   <polygon id="dress" points="90,170 145,170 130,100 115,110, 105,100" style="fill:blue;" />
+    <polygon id="pants" points="105,185, 105,100, 108,100 108,105 127,105 127,100 131,100 131,185 120,185, 120,155 115,155 115,185" style="fill:blue;" />
+</svg>
+
+
+<img id="hair" src="files/browne.png" alt="hair" style="position:absolute;bottom:100px;right:100px">
+    </div>
+    -->
+
+<div id="traindriving" style="display:none">
+<video id="myVideo" style="z-index: 1; position: absolute; top: 0" width=100% autoplay>  <!-- Autoplay is only allowed when approved by the user, the site is activated by the user, or media is muted. -->
+  <!-- muted: <video id="myVideo" width=100% autoplay muted>  -->
+  <source src="files/durchmesserlinie.mp4" type="video/mp4">
+  Your browser does not support HTML video.
+</video>
+    <script>
+        let available_width = screen.availWidth;
+    let available_height = screen.availHeight;
+         // savefile variables
+
+    let money = 399;  // TODO: 375
+    let half_fare_expiry = 0;  // ms
+    let half_fare_price = 40;
+    let travelcard_price = 400;
+    let travelcard_expiry = 0;
+    let locationonmap = [47.41186, 8.54384];
+    console.log(locationonmap[0]);  // easting i guess
+   // let zoomlevelonmap = 13;
+
+
+    const forcefrombeginning = true;
+    if ((localStorage.hasOwnProperty("money")) && !forcefrombeginning){  // load money and everything else
+        money = parseInt(localStorage.getItem("money"));
+        half_fare_expiry = localStorage.getItem("half_fare_expiry");
+        travelcard_expiry = localStorage.getItem("travelcard_expiry");
+        locationonmap = [localStorage.getItem("long"), localStorage.getItem("lat")];  // localstorage can, by default, only handle strings.
+        console.log("balance and savefiles request successful.");
+
+    }
+    else {
+        console.log("started from beginning");
+        localStorage.setItem("half_fare_expiry", half_fare_expiry);
+        localStorage.setItem("travelcard_expiry", travelcard_expiry);
+        localStorage.setItem("long", locationonmap[0]);
+        localStorage.setItem("lat", locationonmap[1]);
+        localStorage.setItem("mode", "intro");
+        localStorage.setItem("money", money);
+        console.log("saved in localstorage");
+
+
+    }
+    </script>
+<script>
+  let startstop = 0;
+  let endstop=2; // global variable
+  let interval = NaN;
+  let countdown = 0; // seconds
+</script>
+<h1 style="position:absolute;right:10%;top:10%;z-index:100;color:white;background-color:black" id="tachometer">0 km/h</h1>
+<h1 style="position:absolute;right:10%;bottom:50%;z-index:100;color:black;background-color:white" id="meter">0m</h1>
+<h1 style="position:absolute;right:10%;top:20%;z-index:100;color:white;background-color:red" id="maxspeed">0 km/h</h1>
+<!-- <h1 style="position:absolute;right:10%;bottom:10%;z-index:100;color:#004" id="state">N</h1> -->
+<h1 style="position:absolute;left:10%;bottom:10%;z-index:100;color:#f00" id="0">EMERGENCY BRAKE</h1>
+<h1 style="position:absolute;left:10%;bottom:20%;z-index:100;color:#ff0" id="1">B2</h1>
+<h1 style="position:absolute;left:10%;bottom:30%;z-index:100;color:#ff0" id="2">B1</h1>
+<h1 style="position:absolute;left:10%;bottom:40%;z-index:100;color:#fff" id="3">N</h1>
+<h1 style="position:absolute;left:10%;bottom:50%;z-index:100;color:#6f6" id="4">A1</h1>
+<h1 style="position:absolute;left:10%;bottom:60%;z-index:100;color:#6f6" id="5">A2</h1>
+<h1 style="position:absolute;left:10%;bottom:70%;z-index:100;color:#6f6" id="6">A3</h1>
+    <!-- <h1 style='position:absolute; left:30%; top:40%;"' id="command"></h1> -->
+</div>
+
+<div id="flying" style="display:block">  <!-- none  -->
+    <video id="myVideo2" style="z-index: 1; position: absolute; top: 0" height=100% autoplay muted>
+        <source src="files/flight1.mov" type="video/mp4">
+    </video>
+</div>
+
+
+
+
+<div id = "map" style = "width:75vw; height:95vh; z-index: -1"></div>
+
+<canvas id="imgCanvas" style="position:absolute;top:0;left:0;width:100%;"> </canvas>
+
+
+
+
+<div id="justfortextandstuff">
+</div>
+<div id="travelcarddiv" style="border:1px solid #000;color:#fff;background-color:#f00;position:absolute;bottom:50%;right:2%;height:30%;width:20%;border-radius:8px;padding:10px">
+    <h1 id="travelpass">No Travel Pass yet.</h1>
+</div>
+<div id="introdiv">
+    <svg style="position:absolute;width:100%;height:100%;left:0;top:0;">
+        <polygon points="0,0 100800,0 100800,55000 0,55000" style="fill:white;stroke:black;stroke-width:1"/>
+        <text id="speech"></text>
+    </svg>
+</div>
+
+
+<div id="feedbackdiv" style="position:absolute;top:0">
+<h1 id="comment"></h1>
+<h1 id="timeNeeded"></h1>
+<h1 id="overSpeedLimit"></h1>
+<h1 id="emergency brakes"></h1>
+<h1 id="loosenBrakesAtHalt"></h1>
+<h1 id="distance stop"></h1>
+<h1 id="totalScore"></h1>
+</div>
+
+
+<script>
+        class Marker {  // this is for markers with screen coordinates that we use for games
+            constructor(text, x_min, x_max, y_min, y_max, functionstring = '', aktiv = true, colour = '#00f', hotcolour = '#f00', potential = 0) {
+                this.text = text;
+                this.x_min = x_min;
+                this.x_max = x_max;
+                this.y_min = y_min;
+                this.y_max = y_max;
+                this.width = x_max - x_min;
+                this.height = y_max - y_min;
+                this.functionstring = functionstring;
+                this.potential = potential;
+                this.aktiv = aktiv;
+                // this.active = active;  use list activemarkers instead
+                this.colour = colour;
+                this.hotcolour = hotcolour;
+
+                console.log("constructing");
+                // let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                this.addText();
+            }
+
+                addText(text){  // TODO: why wouldn't it show, even tho adding to DOM semed to work? or just add leaflet pop up
+                    let h = document.createElement("H1");
+                    let textNode = document.createTextNode(text);
+                    /*
+                    textNode.style.position = "absolute";
+                    textNode.style.top = 0;
+                    textNode.style.left = 0;
+                    textNode.width = "100vw";
+                    textNode.height = "100vh";
+
+                    h.appendChild(textNode);
+                    document.body.appendChild(h);
+                    h.style.position = "absolute";
+                    h.style.zIndex = "1000000";
+                    h.style.top = this.y_min;
+                    h.style.left = this.x_min;
+                    h.style.color = '#0f0';
+                    console.log('added h');
+                    */
+                    // h.style.display = 'inline';
+
+                }
+                deactivate(){  // hide and deactivate
+                this.aktiv = false;
+
+                // delete h;
+                }
+        }
+    // traindriving sim script
+
+    let msperloop = 20;
+        var stick = 3;
+        var speed = 0;
+
+
+    let vid = document.getElementById("myVideo");
+    let vid2 = document.getElementById("myVideo2");
+vid.playbackRate = speed;
+
+let gameoverreason = "you were too fast" // we want this?
+let controlstrings = ["EMERGENCY BRAKE", "B2", "B1", "N", "A1", "A2", "A3"];
+const formatter = new Intl.NumberFormat("en-GB", { style: "decimal",  signDisplay: 'always' });
+
+
+
+
+
+// let seconds_with_emergeny_brake = 0;
+
+
+
+// let colors = [#f00, #ff0, #ff0, #fff, #6f6, #6f6, #6f6];
+let colors = [[255, 0, 0], [255, 255, 0], [255, 255, 0], [255, 255, 255], [100, 250, 100], [100, 250, 100], [100, 250, 100]];
+// let fontcolors = [[255, 255, 255], [255, 255, 255], [255, 255, 255], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+
+
+/*
+ if (!(marker.visited)){
+                            marker.setStyle({color: 'rgb(255, ' + marker.potential.toString() + ', ' +  marker.potential.toString()});
+                        } else {
+                            marker.setStyle({color: 'rgb(' + Math.floor(127 + marker.potential/2).toString() + ', ' + marker.potential.toString() + ', '+ marker.potential.toString() + ')'});
+
+                        }
+ */
+
+function schalten(){
+  for (let i = 0; i < 7; i++){
+    if (i == stick){
+
+      document.getElementById(i.toString()).style.backgroundColor = "rgb("+colors[i][0].toString()+","+colors[i][1].toString()+","+colors[i][2].toString()+")";
+      if (i >= 0){
+       document.getElementById(i.toString()).style.color = "black";
+      } else {
+        document.getElementById(i.toString()).style.color = "white";
+      }
+
+    } else {
+      document.getElementById(i.toString()).style.backgroundColor = null;
+      document.getElementById(i.toString()).style.color = "rgb("+colors[i][0].toString()+","+colors[i][1].toString()+","+colors[i][2].toString()+")";
+
+    }
+  }
+}
+
+schalten();
+
+
+  function codeHandler(equalto) {
+            if (equalto == 'w'){
+              stick = Math.min(stick + 1, 6);
+            }
+
+            if (equalto == 's'){
+              stick = Math.max(stick - 1, 0);
+
+            }
+
+            if (gameover){
+              stick = 0
+            }
+            schalten();
+
+            }
+
+/* we are gaze based
+   document.addEventListener('keydown', (e) => {   // NICE!
+            if (!e.repeat) {
+                KeyDownHandler(e);
+            }
+            });
+            */
+
+let distance_s = 0;
+let distance_m = 0;  // since start
+let distance_to_higher = 0;
+let distance_to_next_change = 0;
+
+
+
+
+// quelle/source durchmesserlinie video: TrainspotterVideos https://www.youtube.com/watch?v=t7XXJmFlbS8
+        // flight video: myself
+
+let beginningtodeccelerate = 180;
+//let end = 269;  // 4:27, wo er circa 2% der geschwindigkeit hat.
+let korrekturfaktor = 1; // e.g. if 60 km/ instead of 120 km/h, it should be 2
+
+let baselinespeed = 115; // km/h
+let mpsbaseline = baselinespeed / 3.6;
+let currentmaxspeed = 0;
+
+speedcheckpoints = []  //
+speedcheckpoints.push([0, 0.9, 80, 442]); // sekunde 0, im video hat der zug relative geschwindigkeit 0.9, ab diesem checkpoint darf man, in fahrtrichtung, 80 fahren, schienenoberkante 442 meter über meer (für schwerpunkt eines zuges etwa)
+speedcheckpoints.push([20, 0.9, 120, 442]);  // ab diesem checkpoint darf man, in fahrtrichtung, 120 fahren
+speedcheckpoints.push([200, 0.8, 80, 390]);
+speedcheckpoints.push([260, 0.0625, 0, 390]);
+speedcheckpoints.push([296, 0.0625, 80, 390]);
+speedcheckpoints.push([314, 0.125, 80, 390]);  // end of löwenstrasse
+speedcheckpoints.push([340, 1, 120, 405]); // at 5:40 the speed is 120 km/h
+speedcheckpoints.push([372, 1, 120, 424]); // kohlendreieckbrücke scheitel erreicht
+speedcheckpoints.push([374, 1, 120, 424]); // kohlendreieckbrücke
+speedcheckpoints.push([394, 1, 120, 402]); // zwischenbrücken
+speedcheckpoints.push([440, 1, 120, 422]); // letzibrücke scheitel erreicht
+speedcheckpoints.push([442, 1, 120, 422]); // letzibrücke
+speedcheckpoints.push([456, 1, 120, 400]); // letzibrücke ende
+speedcheckpoints.push([474, 1, 0, 399]);  // 473
+speedcheckpoints.push([480, 1, 130, 398]); // at 8:00 the speed is 120 km/h
+
+
+/*
+speeditup = 2;
+if (speeditup != 1) {
+  for (let checkpoint of speedcheckpoints) {
+    checkpoint[1] = Math.max(0.0625, checkpoint[1] / speeditup);
+  }
+}
+*/
+
+    let stopped = [false, false];
+let gottastop = [true, true];
+let stops = [260, 474];
+
+        class actionmarkeronmap {  // m
+
+        constructor(e_min, n_min, tooltipstring, functionstring='travelcard()', aktiv=true, colour='00f', heating_up=[1, 1, 0], potential=0, type="activity"){  // TODO: how do default values work that can be changed when creating?
+
+                this.e_min = e_min;
+                this.e_max = e_min + 0.02;
+                this.n_min = n_min;
+                this.n_max = n_min + 0.01;
+                this.functionstring = functionstring;
+                this.tooltipstring = tooltipstring;
+                console.log(tooltipstring);
+                console.log(this.tooltipstring);
+                this.width = this.e_max - this.e_min;  // translate to pixel coordinates?
+                this.height = this.n_max - this.n_min;
+                this.potential = potential;
+                this.aktiv = aktiv;
+                this.colour = colour;
+                this.heating_up = heating_up;
+                this.aktiv = true;
+                this.type = type;
+                this.rectangleinput = [
+            [this.n_min, this.e_min],
+            [this.n_min, this.e_max],
+            [this.n_max, this.e_max],
+            [this.n_max, this.e_min]
+        ]
+            this.rectangle = L.polygon(this.rectangleinput);
+            this.rectangle.setStyle({color: 'rgba(255,0,0,0)'});
+
+            this.rectangle.bindTooltip("test", {
+    permanent: true, direction: "center", // offset: L.point(0, -200) HOWTO TODO:
+}).openTooltip();                  // TODO: das haben wir vergessen??
+
+
+        }
+
+        activate(type='activity', visited=false){
+            var rectangle = this.rectangle;
+            rectangle.addTo(map);  // show
+            // this.aktiv = true; // make gaze interact with it (or just add or remove from iterated lists
+            localthings.push(rectangle);
+            localthings[0].setTooltipContent("walk");
+            leafletMarkers.push(rectangle);
+            this.rectangle.setTooltipContent(this.tooltipstring);  // TODO: here: why is it not the correct tooltipstring?
+            console.log(this.tooltipstring);
+            console.log("added to leafletmarkers");
+            console.log(leafletMarkers.includes(rectangle));
+
+            rectangle.aktiv = true;
+            rectangle.functionstring = this.functionstring;
+            rectangle.tooltipstring = this.tooltipstring;
+            rectangle.potential = 0;
+            rectangle.e_min = this.e_min;
+            rectangle.e_max = this.e_max;
+            rectangle.n_min = this.n_min;
+            rectangle.n_max = this.n_max;
+            rectangle.x_min = this.e_min;
+            rectangle.x_max = this.e_max;
+            rectangle.y_min = this.n_min;
+            rectangle.y_max = this.n_max;
+            rectangle.type = type;
+            rectangle.visited = false;
+
+
+    }
+
+    deactivate(){
+            rectangle.removeControl(map);
+            this.aktiv = false
+    }
+
+    }
+
+
+    function getDistance(){  // main loop
+
+  distance_s = vid.currentTime;
+  distance_to_next_change = 0;
+  distance_m = 0;
+
+  let lower = speedcheckpoints[0];
+  let higher = speedcheckpoints[1];
+  let changepoint = speedcheckpoints[1];
+
+  for (let checkpoint of speedcheckpoints){
+    if ((distance_s >= checkpoint[0]) || (checkpoint[2] == currentmaxspeed)){
+      distance_to_next_change += (checkpoint[0] - lower[0]) * ((checkpoint[1] + lower[1]) / 2) * mpsbaseline; // seconds times avg speed in m/s
+      lower = checkpoint;
+    } else {
+      distance_to_next_change += (checkpoint[0] - lower[0]) * ((checkpoint[1] + lower[1]) / 2) * mpsbaseline;
+      changepoint = checkpoint;
+      break;
+    }
+  }
+  distance_m = 0;
+  lower = speedcheckpoints[0];
+
+  let slope = 0;
+
+   for (let checkpoint of speedcheckpoints){
+    if (distance_s >= checkpoint[0]){
+      distance_m += (checkpoint[0] - lower[0]) * ((checkpoint[1] + lower[1]) / 2) * mpsbaseline; // seconds times avg speed in m/s
+
+      distance_to_higher = distance_m;
+      lower = checkpoint;
+    } else {
+      distance_to_higher += (checkpoint[0] - lower[0]) * ((checkpoint[1] + lower[1]) / 2) * mpsbaseline;
+      slope =  (checkpoint[3] - lower[3]) / ((checkpoint[0] - lower[0]) * ((checkpoint[1] + lower[1]) / 2) * mpsbaseline);
+      // console.log("slope: " + slope);  // shouldn't be more than 0.03 or we made some error
+      higher = checkpoint;
+      break;
+    }
+  }
+  let weightHigher = (distance_s - lower[0]) / (higher[0] - lower[0]);
+  let relativespeed = (1 - weightHigher) * lower[1]  + weightHigher * higher[1];  // linear acceleration over time
+
+
+  distance_m += (distance_s - lower[0]) * ((relativespeed + lower[1]) / 2) * mpsbaseline;
+
+
+    if ((lower[1] == 0.0625) && (higher[1] == 0.0625)){ // if there is a stop in between, i guess we'd have to skip it faster... maybe plus 1 instead?
+    vid.currentTime =  higher[0]; //b Math.min(higher[0], vid.currentTime + relativespeed * playbackspeed * 20);  // 10 * fps, as browser's maximum is 16.
+  }
+
+  // TODO: was braucht welche einheiten
+  let wasdriving = (speed > 0);
+  speed -= (speed**2) * 0.00042; // luftwiderstand air resistance
+  speed -= 0.00005; // rollwiderstand rolling resistance 0.0002
+  // console.log(-(slope / (1 + slope**2)**0.5) * 9.81 * (msperloop / 1000) * (1 / mpsbaseline));
+  speed -= (slope / (1 + slope**2)**0.5) * 9.81 * (msperloop / 1000) * (1 / mpsbaseline); // slope; since acceleration formula is in mps; convert by dividing and apply per second
+  speed = Math.max(0, speed + (stick-3) * (0.48 * (1 / mpsbaseline) * (msperloop / 1000) / Math.max(1, Math.exp(speed-1)))); // TODO: make independent from baseline speed; atm: 0.0005
+  if (stick == 0 || stick == 1){
+    energy_used -= speed;
+  } else if (stick==2){
+    energy_used -= 0.5 * speed;
+  } else {
+    energy_used += ((stick - 3) * Math.max(1, Math.exp(speed-1)));
+  }
+  console.log("activebuttons.length: " + activebuttons.length);
+  if (wasdriving && (speed==0)){
+    stopped_with_min = Math.min(stopped_with_min, stick);
+  }
+
+
+  korrekturfaktor = 1 / relativespeed;
+
+  vid.playbackRate = speed * korrekturfaktor;
+  vid.volume = Math.min(1, vid.playbackRate);  // this is just a random approach to not play the sound when it is too slow and thus poor quality
+
+  if ((speed * baselinespeed) < 1){
+    document.getElementById("tachometer").innerHTML = Math.ceil(speed * baselinespeed) + " km/h";
+  } else {
+    document.getElementById("tachometer").innerHTML = Math.round(speed * baselinespeed) + " km/h";
+  }
+
+
+  if (changepoint[2] == 0){
+    document.getElementById("meter").innerHTML = "In " + Math.floor(distance_to_next_change - (distance_m + 20)) + "m: STOP";
+    if ((distance_to_next_change - distance_m) < 40){
+      document.getElementById("meter").style.backgroundColor = "green";
+      if (speed == 0){ // we stopped at a stop
+        maxdistancefromstop = Math.max(maxdistancefromstop, Math.abs(Math.floor(distance_to_next_change - (distance_m + 20))));
+        if (distance_s > stops[0]){  // the second stop
+          stopped[1] = true;
+          hideeverythingandshowevaluation();
+        } else {  // the first stop
+          stopped[0] = true;
+          if (endstop == 1) {
+            console.log("finished!");
+            hideeverythingandshowevaluation();
+          } else {
+            console.log("we still have some travelling ahead of us!");
+            console.log(endstop);
+          }
+        }
+        setTimeout(() => {  vid.currentTime =  speedcheckpoints[speedcheckpoints.indexOf(changepoint)+1][0]; }, 100); // TODO: play stopping sound from video, and only continue once its played
+
+      }
+    } else {
+      document.getElementById("meter").style.backgroundColor = "white";
+    }
+  } else {
+    document.getElementById("meter").style.backgroundColor = "white";
+    document.getElementById("meter").innerHTML = "In " + Math.floor(distance_to_next_change - distance_m) + "m: " + changepoint[2] + " km/h";
+  }
+
+
+  if ((speed * baselinespeed) > 20 + lower[2]){  // 20 TODO: when should it trigger? 20 km/h? btw: 139.5 km/h already shows 140
+    stick = 0;
+    gameover = true;
+    console.log("game over because too fast");
+    schalten();
+  }
+  for (let i = 0; i < gottastop.length; i++){
+    if (gottastop[i] && (!stopped[i] && distance_s > stops[i])){  // too far
+      gameover = true;
+      console.log("game over because overrun");
+    }
+  }
+  if (Math.round(speed * baselinespeed) > lower[2]){
+    document.getElementById("tachometer").style.color = '#ff0';
+    overspeedlimit = Math.max(overspeedlimit, Math.round(speed * baselinespeed - lower[2]));
+  } else {
+    document.getElementById("tachometer").style.color = '#fff';
+  }
+  if (gameover){
+    document.getElementById("meter").innerHTML = "GAME OVER!";
+    /*
+    if (speed == 0){
+        continue_to_game();
+        */ // we don't need this, since they already got the back to map button
+    }
+
+  document.getElementById("maxspeed").innerHTML = lower[2] + " km/h";
+  currentmaxspeed = lower[2];
+
+}
+
+
+
+
+// todo: fade
+// TODO: delete part of the video (but that makes it more cumbersome to create new simulators)
+// TODO: make performance worse for higher speeds (physics) and lower air resistance
+
+// TODO: show meters
+// for this, we would have to integrate over the whole thing.
+
+// TODO: gaze based
+// TODO: one option is to fade AFTER the train stopped, directly to the point where we wanna start.
+
+
+
+    document.getElementById("traindriving").style.display = "none";
+    // let timescore = countdown;
+    var gearupbutton = new Marker("Gear Up (Accelerate)", available_width * 0.15, parseInt(available_width * 0.4), parseInt(available_height * 0.1), parseInt(available_height * 0.4), 'codeHandler("w");');  // TODO: how to we use his usestring in another script block?
+    var geardownbutton = new Marker("Gear down (Brake)", available_width * 0.15, parseInt(available_width * 0.4), parseInt(available_height * 0.45), parseInt(available_height * 0.75), 'codeHandler("s");');
+
+    var activebuttons = [];
+
+
+let energy_used = 0;
+let gameover = false;
+let overspeedlimit = 0;
+let maxdistancefromstop = 0;
+let stopped_with_min = 4;
+let then = Date.now();
+let end = Date.now();
+let timescore = 0;
+
+function set_game(start=0, end=2, minutes=5){
+    for (let marker of leafletMarkers){
+        marker.aktiv = false;
+    }
+    speed = 0;
+stick = 3;
+gameover = false;
+then = Date.now();
+energy_used = 0;
+stopped_with_min = 4;
+overspeedlimit = 0;
+maxdistancefromstop = 0;
+    console.log('set game');
+    gameover = false;
+    document.getElementById("introdiv").style.display = "block";  // for the end so we can display results
+    document.getElementById("traindriving").style.zIndex = "10000000000"; // TODO: why hidden behind white?
+
+    gearupbutton.potential = 200;  // TODO: is there some sortta function we called too often that it behaves weirdly?
+    geardownbutton.potential = 200;
+    gearupbutton.aktiv = true;
+    geardownbutton.aktiv = true;
+    activebuttons.push(gearupbutton);
+    activebuttons.push(geardownbutton);
+    buytravelcardbutton.text = "Return to Map";
+    buytravelcardbutton.functionstring = "document.getElementById('feedbackdiv').style.display = 'none'; clearInterval(interval); activebuttons.splice(activebuttons.length - 1); activebuttons.splice(activebuttons.length - 1); console.log('returning to map from train simulator'); buytravelcardbutton.text = \"Buy a Travel Card\";\n" +
+        "      buytravelcardbutton.functionstring = \"travelcard()\"; document.getElementById('travelcarddiv').style.display = 'block'; continue_to_game()";
+    // go_back_from_travelcard();  // TODO: why would we want this?
+
+    document.getElementById("travelcarddiv").style.display = "none";
+  document.getElementById("traindriving").style.display = "block";
+  // document.getElementById("command").innerHTML = "Departure in " + countdown + "seconds. Press 'w' to shift up."; TODO
+  startstop = Math.min(start, 1);
+  startstop = Math.max(startstop, 0);
+  endstop = Math.max(end, startstop+1);  // at least start + 1
+  endstop = Math.min(endstop, 2); // at most 2
+
+    if (startstop == 0){
+    vid.currentTime = 10;  // TODO: 10  ; 247
+  } else if (startstop == 1){
+    vid.currentTime = 296;  // TODO: 296
+    gottastop[0] = false;
+  }
+  if (end==1){
+    gottastop[1] = false;
+  }
+
+  timescore = minutes * 60;
+  console.log("objective(seconds): " + timescore);
+  interval = setInterval(getDistance, msperloop);  // TODO: adapt intervals, so that you can switch forth and back from map
+  then = Date.now();
+  energy_used = 0; // kWh
+
+}
+
+function hideeverythingandshowevaluation() {
+    document.getElementById("traindriving").style.display = "none";
+    document.getElementById(("feedbackdiv")).style.display = "block";
+    gearupbutton.aktiv = false;
+    geardownbutton.aktiv = false;
+
+    console.log("hiding everything");
+    clearInterval(interval);
+    let score = 100 * (endstop - startstop);
+    document.getElementById("comment").innerHTML = "Well Done! +" + score + " CHF";
+
+    let now = Date.now();
+    let time_needed = Math.floor((now - then) / 1000);
+
+    timescore -= time_needed;
+    document.getElementById("timeNeeded").innerHTML = "Time (" + time_needed + " seconds): " + formatter.format(timescore) + " CHF";
+    score += timescore;
+    document.getElementById("overSpeedLimit").innerHTML = "Speeding (" + overspeedlimit.toString() + " km/h): " + Math.ceil(-(overspeedlimit ** 2) / 10).toString() + " CHF";
+    score -= Math.ceil(-(overspeedlimit ** 2) / 10)
+    console.log(overspeedlimit);
+
+    /*
+  document.getElementById("emergency brakes").innerHTML = "Emergency Brake Usage (" + seconds_with_emergeny_brake + " seconds): " + (- 5 * seconds_with_emergeny_brake) + " CHF";
+  score -= 5 * seconds_with_emergeny_brake;  // delete and replace with energy usage?
+  */
+    document.getElementById("emergency brakes").innerHTML = "Energy cost: -" + Math.ceil(energy_used / 400) + " CHF";
+    score -= Math.ceil(energy_used / 400);
+
+    if (stopped_with_min >= 2) {
+        document.getElementById("loosenBrakesAtHalt").innerHTML = "Smooth Stop (with " + controlstrings[stopped_with_min] + "): +20 CHF";
+        score += 20;
+    } else {
+        document.getElementById("loosenBrakesAtHalt").innerHTML = "Hard Braking at Stop (with " + controlstrings[stopped_with_min] + "): " + (stopped_with_min - 1) * 20 + " CHF";
+        score += (stopped_with_min - 1) * 20;
+    }
+    document.getElementById("distance stop").innerHTML = "Stopping precision (" + maxdistancefromstop.toString() + "m): +" + (20 - maxdistancefromstop).toString() + " CHF";
+    score += (20 - maxdistancefromstop);
+    console.log(maxdistancefromstop);
+    document.getElementById("totalScore").innerHTML = "Paycheck: " + Math.max(score, 0) + " CHF";
+    changeMoney(Math.max(score, 0));  // this should update the screen
+
+    // we travelled to a new location in the meantime:
+    if (endstop==1){
+        locationonmap = [stations[3][1], stations[3][2]];
+       setFocal(3); // hauptbahnhof
+        console.log("you drove to hauptbahnhof yourself");
+    } else if (endstop==2){
+        locationonmap = [stations[5][1], stations[5][2]];
+        console.log("you drove to altstetten yourself");
+        setFocal(5); // altstetten
+    } else {
+        console.log("end: " + endstop);
+    }
+}
+
+    // end of traindriving sim script
+</script>
+
+
+<script>
+
+    // TODO: don't activate same station / bahnhof location twice immediately after zooming
+    localStorage.setItem("mode", "intro");
+
+    let leafletMarkers = [];
+    let stationpolygons = [];  // where we walk to
+    let bahnhoefe = [];   // where we take the train to
+    let localthings = [];
+    let hs = [];
+
+
+        // stationinfo    //["hardbrücke", 47.38518, 8.51725]
+
+    let stations = [["Affoltern", 47.42089, 8.50878],
+        ["Oerlikon", 47.41186, 8.54384],
+        ["Stadelhofen", 47.36674, 8.54863],
+        ["Hauptbahnhof", 47.379, 8.537],
+        ['Airport', 47.450, 8.562],
+        ['Altstetten', 47.392, 8.489],
+        ];
+
+
+    let canvas = document.getElementById("imgCanvas");
+    let context = canvas.getContext("2d");
+    canvas.style.zIndex = 30;  // finally :)
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+
+
+
+    let chargingspeed = 2;
+    if (!useButton){
+        chargingspeed = 3;
+    }
+
+
+
+
+
+    for (let i = 0; i < stations.length; i++){
+        let h = document.createElement("H1");
+        let textNode = document.createTextNode("Hello" + i);
+        h.appendChild(textNode);
+        document.body.appendChild(h);
+        h.style.position = "absolute";
+        h.style.zIndex = "20";
+        hs.push(h);
+    }
+    console.log('length of stations: ' + stations.length);
+    console.log('length of hs: ' + hs.length);
+
+
+    let mapOptions = {
+        center: [47.395, 8.537],
+        zoom: 13,
+        zoomControl: false,
+        attributionControl: false,
+        closePopupOnClick: false,
+        zoomSnap: 0.1,
+        boxZoom: false,
+        dragging: false,
+        zoomAnimationTreshold: 10,
+        keyboard: false,
+    }
+
+    // Creating a map object
+   // let L = window.L;
+    let map = new L.map('map', mapOptions);
+
+
+
+
+
+
+    let ticketshop = new actionmarkeronmap(8.500, 47.379, "will be overwritten", functionstring="talking_to_ella(0)");  // just like a bahnhof  //TODO: tut toolstrip wenn man es nicht überschrieben würde?
+    let traindriveroerlikon = new actionmarkeronmap(8.55384, 47.41186, "Work as a train driver and drive to Hauptbahnhof", functionstring="set_game(0, 1, 5)");  //TODO: why so fast?
+   // let rocketpilotgig = new actionmarkeronmap(8.49878, 47.42089);
+   // let cook = new actionmarkeronmap(47.36674, 8.54863);  control temperature
+    // let memory
+    // let puzzle solver
+    // let destroy wood
+    let traindriverhb = new actionmarkeronmap(8.547, 47.379, "Work as a train driver and drive to Altstetten", functionstring="set_game(1, 2, 5)");
+    let flyfromzurich = new actionmarkeronmap(8.532, 47.450, "Fly to Tropical Beach - 400 CHF", functionstring="fly_there()");
+    let flyfromokinawa = new actionmarkeronmap(122.9717323912761, 24.465405024709412, "Fly back to Switzerland", functionstring="fly_switzerland()");
+    let letellapublish = new actionmarkeronmap(122.9467323912761, 24.465405024709412, "Let Ella Publish her Paper", functionstring="win()");  // TODO: adapt westness
+
+
+
+
+    /*
+       [["Affoltern", 47.42089, 8.50878],
+        ["Oerlikon", 47.41186, 8.54384],
+        //["hardbrücke", 47.38518, 8.51725],
+        ["Stadelhofen", 47.36674, 8.54863],
+        ["Hauptbahnhof", 47.379, 8.537],
+        ['Airport', 47.450, 8.562],
+        ['Altstetten', 47.392, 8.489],
+        ];
+
+
+
+    <button onClick="set_game(0, 1, 5)">Oerlikon - Zürich HB</button>
+    <button onClick="set_game(1, 2, 5)">Zürich HB - Altstetten</button>
+    <button onClick="set_game(0, 2, 11)">Oerlikon - Altstetten</button>
+    */
+
+    ticketshop.activate('info'); //  TODO: fix the issue with leaflet, or use our custom markers and transform coordinates?
+    traindriveroerlikon.activate();
+    traindriverhb.activate();
+    flyfromzurich.activate();
+    flyfromokinawa.activate();
+
+
+
+
+    let infoNorth = new actionmarkeronmap(8.560, 47.455, "Talk to Angela", functionstring="infoNorth.rectangle.setTooltipContent('Ella is in the Highrise Complex. You should talk to her before flying to the Tropics.'); document.getElementById('angela').style.display = 'block';");
+    infoNorth.activate('info');
+
+    function info_north() {
+        hs[1].innerHTML = "Ganz im Süden ist Ella";
+        hs[1].display = "block";
+        infoNorth.rectangle.visited = true;
+
+    }
+
+    function win(){
+        document.getElementById("introdiv").style.display = "block";
+        hs[1].style.display = "inline";
+        hs[1].innerHTML = "you win!";
+    }
+
+
+      function talking_to_ella(nr){
+        switch(nr) {
+  case 0:
+      document.getElementById("angela").style.display = "block";
+      for (let marker of leafletMarkers) {
+          marker.aktiv = false;
+      }
+      document.getElementById("introdiv").style.display = "block";
+        hs[1].style.display = "inline";
+        hs[1].innerHTML = "Hello! Sorry that I was hiding from everyone! I didn't want to text you either, I was scared someone else could read it.";
+        console.log(activebuttons.length);
+        console.log(leafletMarkers.length);
+        continuebutton.aktiv = true;
+        buytravelcardbutton.aktiv = false;
+        continuebutton.functionstring = "talking_to_ella(1)";
+        activebuttons.push(continuebutton);
+        break;
+        case 1:
+            hs[1].innerHTML = "The reason I'm hiding is that I plan to publish my paper on Consciousness Studies that could have big implications for certain stakeholders. I can't elaborate now, but maybe it is safer if I stay at your side? Maybe safest would be somewhere far away?";
+
+      continuebutton.functionstring = "talking_to_ella(2)";
+      break;
+
+      case 2:
+         //  letellapublish.aktiv = true;  // TODO: both of them neseccary?
+          letellapublish.activate();
+          // leafletMarkers.push(letellapublish);
+          document.getElementById("introdiv").style.display = "none";
+          continuebutton.aktiv = false;
+      buytravelcardbutton.aktiv = true;
+      hs[1].style.display = "none";
+      for (let marker of leafletMarkers) {
+          marker.aktiv = true;
+      }
+      continuebutton.aktiv = false;
+      activebuttons.splice(activebuttons.length - 1); // remove continue
+      buytravelcardbutton.aktiv = true;
+
+
+
+
+  default:
+      console.log("received invalid nr value for talking to ella")
+
+
+}
+        }
+
+
+
+
+
+
+
+
+    function fly_there() {
+
+        if (money >= 400){
+            changeMoney(-400);
+            vid2.currentTime = 0;
+            document.getElementById("flying").style.display = "block";
+            // map.setView([0, 120]);
+            // map.flyTo([26.31651673886077, 126.77413471959558], 15);
+            map.flyTo([24.465405024709412, 122.9717323912761], 14);  // , 18); zoom level: 15 like before
+            then = Date.now();
+            tropicalsound.pause();
+            tropicalsound.play();
+
+      }
+    }
+
+    function fly_switzerland() {
+        tropicalsound.pause();
+        document.getElementById("flying").style.display = "block";
+            // map.setView([0, 120]);
+            // map.flyTo([26.31651673886077, 126.77413471959558], 15);
+            map.flyTo([stations[4][1], stations[4][2]], 15);  // , 18); zoom level: 15 like before
+    }
+
+
+
+
+    // define rectangle geographical bounds
+let bounds = [[47.379, 8.500], [47.455, 8.560]];
+
+// create an orange rectangle
+    /*
+const directly_bounds = L.rectangle(bounds, {color: "#ff7800", weight: 1}).addTo(map);
+directly_bounds.setTooltipContent("Hello World");
+*/
+
+
+
+
+
+
+    /*
+
+    fromTo = [] // empty array. we need to save the pixel coordinates now, because on load leaflets function doesn't work yet.
+    for (let from = 0; from < stations.length; from++){
+        row = []
+        for (let to = 0; to < stations.length; to++){
+            row.push()
+
+        }
+        fromTo.push(row);
+
+    }
+    */
+
+    // Creating a Layer object
+    let layer = new L.TileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+
+    // Adding layer to the map
+    map.addLayer(layer);
+
+    // TODO: read in markers from geoJSON option?
+    // stations are to take the train there, bahnhoefe are to walk there
+
+
+
+    let quarter_circumference = 10000;  // km
+    let km_n = quarter_circumference / 90;
+    let km_e = quarter_circumference * Math.cos(stations[0][1] * Math.PI / 180) / 90;
+
+    function kmTo(other_position){  // to estimate locally the distance in km to a E, N value pair
+        return (((other_position[0]-locationonmap[0])*km_n)**2 + ((other_position[1]-locationonmap[1])*km_e)**2)**0.5
+    }
+
+
+
+    function zoominandwait(index, goal) {
+        map.setView(L.latLng(stations[index][1], stations[index][2]), goal);
+    // console.log("still waiting for the map to actualise");
+    console.log("goal: " + goal);
+    console.log("zoom level" + map.getZoom());
+
+    // while (goal != map.getZoom());  // TODO: why isn't map.getZoom actualising? it should turn 14 when zooming in.
+
+    console.log("zooming");
+
+    }                         // TODO: otherwise we are forced to work with pop ups
+
+
+
+    ticketshop.rectangle.setTooltipContent("Highrise Complex");
+
+
+
+
+
+    var useGaze = false;  // var makes it global somehow
+    var useButton = true;
+
+        const elem = document.documentElement;
+
+
+        function openFullscreen() {
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen();
+            }
+        }
+        // openFullscreen();
+
+
+
+        const tropicalsound = new Audio('files/Scandinavianz - Tropics.wav');  // author: 'Scandinavianz' on Soundcloud
+        // sample code for playing audio file, delete it if you don't need it.
+
+        ////////////////////////////////////////////////////////////////////////////////////
+
+        var host = document.location.host;
+        var pathname = document.location.pathname;
+        pathname = pathname.split("/")[1] ;
+        var interactive = false;
+        var test = true;
+
+        var active = false;
+
+        /*---- The following are for connecting the eye tracker with this web page ----*/
+        var webSocket = new WebSocket("ws://" + host + "/" + pathname +"/"+ "demo");
+        webSocket.onopen = function(message) {
+            processOpen(message);
+        };
+        webSocket.onclose = function(message) {
+            processClose(message);
+        };
+        webSocket.onerror = function(message) {
+            processError(message);
+        };
+        webSocket.onmessage = function(message) {
+            processMessage(message);
+        };
+
+        function processOpen(message) {
+            console.log("connected");
+			startConnection();
+        }
+
+        function processClose(message) {
+            console.log("Client disconnected");
+
+        }
+
+        function processError(message) {
+
+        }
+
+        function processMessage(message) {
+            console.log(message);
+            var scale = window.devicePixelRatio;
+            var msg = JSON.parse(message.data);
+            switch (msg.function) {
+                case "draw_lens":
+                    var x = transX(msg.x / scale); //transX(msg.x);
+                    var y = transY(msg.y / scale); //transY(msg.y)
+                    processGaze(x, y);
+                    //webSocket.send(res);
+                    break;
+
+            }
+        }
+
+		function startConnection(){
+			var result = new Object();
+			result.function = "ready";
+			webSocket.send(String(JSON.stringify(result, null, 2)));
+		}
+
+        ////////////////////////////////////////////translate coordinates ////////////////////////////////////////
+
+
+        function transX(x) {
+            var borderWidth = (window.outerWidth - window.innerWidth) / 2;
+            topleft_x = window.screenX + borderWidth;
+            return (x - topleft_x);
+        }
+
+        function transY(y) {
+            var borderWidth = (window.outerWidth - window.innerWidth) / 2;
+            topleft_y = window.screenY + window.outerHeight - window.innerHeight - borderWidth;
+            return (y - topleft_y);
+        }
+
+        /* ------ End of the part for connecting eye tracker ---- */
+        let most_recent_x = 0;
+        let most_recent_y = 0;
+
+        function process(){
+            if (!useGaze) {
+                processGaze(most_recent_x, most_recent_y)
+            }
+        }
+
+        if(!useGaze){
+            document.addEventListener("mousemove", () => {
+                most_recent_x = event.clientX; // Gets Mouse X
+                most_recent_y = event.clientY; // Gets Mouse Y
+               // processGaze(most_recent_x, most_recent_y); // simulate with mouse cursor
+            });
+            setInterval(process, 15);
+        }
+
+        // processGaze: This is a function that is being called once the gaze data come (x and y of the gaze point)
+
+        const clWidth = document.documentElement.clientWidth;
+        const clHeight = document.documentElement.clientHeight;
+
+        document.addEventListener('keydown', (e) => {   // NICE!
+            if (!e.repeat) {
+                KeyDownHandler(e);
+            }
+            });
+
+
+        function changeMoney(amount){
+            money = money + amount;
+            drawGaze(most_recent_x, most_recent_y); // updateScreen if not done already by mode gaze
+            localStorage.setItem("money", money);
+        }
+        let adding_potential = false;
+        let buildup = '';
+
+        function KeyDownHandler(event) {
+            console.log(event);
+
+            if ((event.key == 'g') && (buildup == 'i')){
+                useGaze = (!useGaze);
+            }
+            if ((event.key == 'b') && (buildup == 'i')){
+                useButton = (!useButton);
+                chargingspeed = 2;
+                if (!useButton){
+                chargingspeed = 3;
+                }
+            }
+              if (event.key == 'i'){
+                buildup = 'i';
+            }else {
+                  buildup = '';
+              }
+
+            if ((event.keyCode == 77) || (event.keyCode == 109)) {// m is for money hack
+                changeMoney(1);
+                drawGaze(most_recent_x, most_recent_y); // updateScreen
+            } else if ((event.key == 'Enter')&&(useButton)){ // j is for accelerating action
+                adding_potential = true;
+            } else if (event.key == 'c'){
+                drawingCircle = !(drawingCircle);
+            } else if (event.key == 'q'){  // change input mode, but only if i is pressed?
+
+
+            } else if (event.key == 'w'){
+                useButton = m(!useButton);
+            }
+        }
+
+
+
+
+    function setFocal(index){
+        let distanceself = kmTo([stations[index][1], stations[index][2]]);
+        console.log('to ' + stations[index][0] + ' it is ' + distanceself);
+
+
+           // 14);
+        console.log("zoomed");
+
+        /*
+        let latling1 = L.latLng(stations[index][1], stations[index][2]);
+        let latling2 = L.latLng(locationonmap[0], locationonmap[1]);
+        let distanceleaflet = map.distance(latling1, latling2);  // TODO: convert in the leaflet way and compare
+        console.log(distanceleaflet);
+        */
+
+        let price = 0;
+        let now_ms = Date.now();
+        if (travelcard_expiry<now_ms){  // no travelcard
+            if (distanceself < 0.1){  // no ticket
+            price = 0;
+        } else if (distanceself < 2){
+            price = 2;
+        } else {
+            price = (2 + Math.floor(distanceself / 2) * 2);
+        }
+          if (half_fare_expiry>now_ms){
+              price /= 2;
+          }
+
+
+          for (let i = 0; i < stations.length; i++){
+              stationpolygons[i].setTooltipContent("Walk to " + stations[i][0] + " Station");
+
+            bahnhoefe[i].setStyle({color: 'rgba(0,0,0,255)'});  // transparent
+            stationpolygons[i].setStyle({color: 'rgba(0,0,0,0)'});
+          }
+
+
+
+
+          for (let i = 0; i < localthings.length; i++){
+              localthings[i].setStyle({color: 'rgba(0,0,0,255)'});
+          }
+
+          hidehs();
+        }
+
+
+        leafletMarkers = leafletMarkers.filter(x => !(stationpolygons.includes(x)));
+        for (let i = 0; i < bahnhoefe.length; i++) {
+            leafletMarkers.push(bahnhoefe[i]);
+            // makesome.errormwssagfe();
+        }
+
+        for (let i = 0; i < localthings.length; i++) {
+            leafletMarkers.push(localthings[i]);
+
+        }
+
+
+        for (let i = 0; i < stationpolygons.length; i++) {
+            stationpolygons[i].setStyle({color: 'rgba(0,0,0,0)'});  // transparent
+        }
+
+
+        // if (locationonmap[1]-stations[index][1])**2)
+        if (price <= money) {
+            zoominandwait(index, 15);
+            changeMoney(-price)
+            locationonmap = [stations[index][1], stations[index][2]];
+
+
+        } /* else {  // not enough money, so we walk TODO: fix, or make it possible to earn money everywhere and disable
+
+            /*
+            let quote = (i / distanceself);
+            let goal_e = stations[index][1];
+            let goal_n = stations[index][2];
+
+            for (let i = 1; i<= distanceself; i++){
+                let new_e = quote * goal_e + (1 - quote) * old_e;
+                let new_n = quote * goal_n + (1 - quote) * old_n;
+                map.setView(L.latLng(new_e, new_n), 15);
+                locationonmap = [new_e, new_n];
+                console.log(i);
+
+             }
+
+
+
+
+
+        let most_recent_station_name = stations[index][0];
+        console.log(most_recent_station_name);
+        localStorage.setItem("location", locationonmap);
+*/
+
+    }
+
+
+// TODO: either we copy the style of a leaflet polygon to make our own polygon and adapt the functions that need them
+    // TODO: or we make leaflet markers come to front and translate coordinates and use them
+
+
+
+    // label
+
+    /*
+        let label = new L.Label();
+        label.setContent("static label");
+        label.setLatLng(polygon.getBounds().getCenter());
+        map.showLabel(label);
+        labels.push(label);
+
+ */
+ //   let mnk = L.marker([-47.7772, 8.2606]);
+    //    mnk.bindLabel('Look revealing label!').addTo(map);
+
+        //  pop up
+    /*
+        var popup = L.popup();
+    /let latlng = L.latlng(47.41186, 8.54384);
+    .setLatLng(latlng)
+    .setContent('<p>Hello world!<br />This is a nice popup.</p>')
+    .openOn(map);
+
+     */
+
+
+let stationlabels = [];
+
+
+    for (let index = 0; index < stations.length; index++) {
+        let stationname = stations[index][0];
+
+
+        let x = stations[index][2];  // east
+        let y = stations[index][1];  // north
+
+        let x_min = x - 0.02;
+        let x_max = x + 0.02;
+        let y_min = y - 0.01;
+        let y_max = y + 0.01;
+
+        let x_minbahn = x - 0.01;
+        let x_maxbahn = x + 0.01;
+        let y_minbahn = y - 0.005;
+        let y_maxbahn = y + 0.005;
+
+        // marker_data_hb = new Marker('hb', y-0.01)
+        let rectangle = L.polygon([
+            [y_min, x_min],
+            [y_min, x_max],
+            [y_max, x_max],
+            [y_max, x_min]
+        ],  self.id = stationname);
+         // in alter leaflet version geht das nicht
+        rectangle.bindTooltip("test", {                          // stations have a rectangle in stationpolygons with the same index and they have tooltips
+    permanent: true, direction: "center" //                         ,  TODO: offset: L.point(0, -200)
+}).openTooltip();
+
+
+
+
+        stationpolygons.push(rectangle);
+
+        let bahnhof = L.polygon([
+            [y_minbahn, x_minbahn],
+            [y_minbahn, x_maxbahn],
+            [y_maxbahn, x_maxbahn],
+            [y_maxbahn, x_minbahn]
+        ])
+        bahnhoefe.push(bahnhof);
+
+
+
+        rectangle.addTo(map);
+        bahnhof.addTo(map);
+
+        rectangle.x_min = x_min;
+        rectangle.x_max = x_max;
+        rectangle.y_min = y_min;
+        rectangle.y_max = y_max;
+        bahnhof.x_min = x_minbahn;
+        bahnhof.x_max = x_maxbahn;
+        bahnhof.y_min = y_minbahn;
+        bahnhof.y_max = y_maxbahn;
+        rectangle.n = y;
+        rectangle.e = x;
+        bahnhof.n = x;
+        bahnhof.e = y;
+        bahnhof.latlng = L.latLng(bahnhof.n, bahnhof.e);
+        rectangle.latlng = L.latLng(rectangle.n, rectangle.e);
+        rectangle.aktiv = true;  // TODO: entweder hier jeweils false setzen, oder aus markers liste entfernen, um für gaze unempfindlich zu machen.
+        // rgba(0, 0, 0, 0) ist fürs visuelle.
+        bahnhof.aktiv = true;
+        rectangle.potential = 0;
+        rectangle.type = "train";
+        bahnhof.potential = 0;
+        bahnhof.type = "train";
+
+        rectangle.functionstring = "setFocal("+index.toString()+");";
+        bahnhof.functionstring = "setOverview("+index.toString()+"); " +
+            "locationonmap[0] = stations["+index.toString()+"][1]; locationonmap[1] = stations["+index.toString()+"][2];";  // TODO: change
+        bahnhof.setStyle({color: 'rgba(0,0,0,0)'});
+        // let stations = L.layerGroup([rectangle_hb]);
+        // leafletMarkers.push(stations);
+        leafletMarkers.push(rectangle);
+
+    }
+
+
+
+
+
+        function setOverview(index){
+        locationonmap = [stations[index][1], stations[index][2]];  // [east, north]
+        zoominandwait(index, 13);
+        leafletMarkers = leafletMarkers.filter(x => !((bahnhoefe.includes(x)) || localthings.includes(x)));
+
+        for (let i = 0; i < localthings.length; i++) {
+            localthings[i].setStyle({color: 'rgba(0,0,0,0)'});  // transparent
+        }
+
+
+        for (let i = 0; i < stations.length; i++) {
+            bahnhoefe[i].setStyle({color: 'rgba(0,0,0,0)'});  // transparent
+            stationpolygons[i].setStyle({color: 'rgba(0,0,0,255)'});
+            leafletMarkers.push(stationpolygons[i]);
+
+
+            let distanceself = kmTo([stations[i][1], stations[i][2]]);
+            let price = 0;
+            let now_ms = Date.now();
+
+
+            let pricestring = " "; // travelcard ticket
+
+            if (travelcard_expiry<now_ms) {  // no unlimited travelcard
+                if (distanceself < 0.1) {  // no ticket needed
+                    price = 0;
+                } else if (distanceself < 2) {
+                    price = 2;
+                } else {
+                    price = 2 + parseInt(distanceself / 2) * 2;
+                }
+                if (half_fare_expiry > now_ms) {
+                    price /= 2;
+                }
+
+                    if (price > money) {
+                        pricestring = pricestring + " - You can't afford a ticket."
+                        leafletMarkers = leafletMarkers.filter(x => !(stationpolygons[i] == x));
+
+                    } else {
+                        pricestring = pricestring + " - " + price.toString() + " CHF";
+                    }
+                } else {
+                    console.log("You have a travel card!");
+                    console.log("travelcard expiry: " + travelcard_expiry);
+                    console.log("date now: " + Date.now());
+
+                }
+
+                console.log("zoom: " + map.getZoom());
+                if ((map.getZoom() > 14) && (kmTo([stations[i][1], stations[i][2]]) > 0.1)){  // if we are on train taking level AND not close
+                    stationpolygons[i].setTooltipContent("Train to " + stations[i][0] + pricestring) //  + " ("+kmTo([stations[i][1], stations[i][2]])+"km)");
+                    console.log("showing price string");
+                } else if (false){
+                    // pass TODO: why does it less us take the train as soon as we have a travel card? it seems to update locationonmap though
+                }
+                else {   // walk to the station itself
+                    stationpolygons[i].setTooltipContent("Walk to " + stations[i][0]) // + " ("+kmTo([stations[i][1], stations[i][2]])+"km)"); // + kmTo([stations[i][1], stations[i][2]]));
+                }
+
+        }
+
+
+
+
+    }
+
+
+    function buy(indx) {  // 1 = halftax, 2 = travelcard
+        let price = half_fare_price
+        if (indx == 1){
+            if ((half_fare_expiry < Date.now()) && (travelcard_expiry < Date.now())){
+                if (money >= price){
+                    changeMoney(-price);
+                    half_fare_expiry = Date.now() + 1000 * 3600 * 24 * 365;  // a year
+                    localStorage.setItem('half_fare_expiry', half_fare_expiry.toString())
+                    document.getElementById('travelpass').innerHTML = "Half Fare Card";
+                }
+            }
+        }
+        if (indx == 2){
+            price = travelcard_price;
+            if (travelcard_expiry < Date.now()){
+                price -= Math.max(0, Math.floor(((half_fare_expiry - Date.now()) / (1000 * 3600 * 24 * 365)) * half_fare_price));  // money back for other card
+                if (money >= price){
+                    changeMoney(-price);
+                    travelcard_expiry = Date.now() + 1000 * 3600 * 24 * 365;  // a year
+                    localStorage.setItem('travelcard_expiry', travelcard_expiry.toString());
+                    document.getElementById('travelpass').innerHTML = "Unlimited Travel Card";
+                }
+            }
+        }
+    }
+     let continuebutton = new Marker("", available_width * 0.1, parseInt(available_width * 0.5), parseInt(available_height / 2), parseInt(available_height * 0.8), 'chargingspeed=1;hs[1].innerHTML="Well done! To accelerate things, you can also press Enter while looking at a rectangle...";' +
+                    'continuebutton.functionstring="performintro(1)"');
+   // continuebutton.style.zIndex = "2000000";
+
+  let buytravelcardbutton = new Marker("Buy a Travel Card", Math.ceil(available_width * 0.8), Math.ceil(available_width), Math.ceil(available_height * 0.65), Math.ceil(available_height), "travelcard();");
+   // continuebutton.style.zIndex = "2000000";
+
+    function continue_to_game(){
+        console.log(gearupbutton.functionstring);
+        gearupbutton.deactivate();
+        geardownbutton.deactivate();
+        localStorage.setItem("mode", "normal");
+        document.getElementById("traindriving").style.display = "none";
+
+        chargingspeed = 2;
+        if (!useButton){
+            chargingspeed = 3;
+        }
+        hidehs();
+        document.getElementById("introdiv").style.display = "none";
+        continuebutton.aktiv = false;
+
+
+                for (let marker of leafletMarkers) {
+                    marker.aktiv = true;
+                }
+                let person = new Person();  // doesn't do anything at this moment besides hiding
+
+                person.hide();
+                drawGaze(most_recent_x, most_recent_y);
+                if (activebuttons.length == 0){
+                    activebuttons.push(buytravelcardbutton);
+                }
+                drawGaze(most_recent_x, most_recent_y); // update screen
+
+
+    }
+
+
+
+
+    function performintro(progress=0){
+        setFocal(1); // oerlikon
+        hs[1].style.display = "inline";
+
+
+
+
+        switch (progress) {
+            case 0:
+                localStorage.setItem("mode", "challenge");
+                activebuttons.push(continuebutton);
+                hs[1].style.top = "100px";
+                hs[1].style.left = "100px";
+                hs[1].innerHTML = "Hello and Welcome to Zürich!<br><br> I hope you had a pleasant train ride.<br>When you're ready, look at the rectangle below for a few seconds."
+
+
+                break;
+            case 1:  // TODO: make ella red (or both blue and change here)
+                hs[1].innerHTML = "All around the map, there will be train stations in black, conversations in <span style='color:red'>red</span> and activities in <span style='color:green'>green</span>. By the way, have you seen our friend Ella? She also lives in Zurich but I haven't seen here in a while...";
+                chargingspeed = 1;
+                if (!useButton) {
+                    chargingspeed = 2;
+                }
+
+
+                continuebutton.functionstring = "performintro(2)";
+                continuebutton.addText("Go to Oerlikon");  // TODO: why can't we see this?
+                break;
+
+            case 2: // continue to map, back to game
+                localStorage.setItem("mode", "normal");
+                activebuttons.splice(0);  // remove continuebutton
+                drawGaze(most_recent_x, most_recent_y); // update screen
+                continue_to_game();
+                break;
+        }
+    }
+
+    function rocketflight(){  // no gaze at all? one single button
+        let y_of_zero = height * (3 / 4);
+        let y = (height / 16) * (Math.random() + 1);
+        let fuel = 1000;
+        let speed = 0;
+        let running = true;
+        while (running){
+            if (true){  // TODO: if enter is being pressed. (even if continuously)
+                if (fuel > 0){
+                    fuel -= 1;
+                    speed -= 2;  // upwards, towards smaller y
+                    y += speed;
+                }
+
+            }
+            speed += 1 // gravitation
+            if (y >= y_of_zero){
+                running = false;
+
+            } if (speed > 10) { // TODO: crash
+            } else {
+                changeMoney(20 + parseInt((fuel/50) - speed));  // TODO: payment from rocket what is this?
+
+
+            }
+
+        }
+
+
+    }
+
+    function didyouknow(){
+                hs[1].innerHTML = "Did you know that you can buy travelcards right to the east of the central station?"
+        }
+
+
+        // TODO: activity points with a name and they have a property startcolor and hotcolor that depends on whether they have been visited;
+
+
+        // since clicking long on the commit button means we want it to happen anyway.
+        let lat = 0;
+        let long = 0;
+
+
+        function clearMarkers() {
+            for (let marker of leafletMarkers) {
+                if (marker.aktiv) {
+                    marker.aktiv = false;
+                    marker.removeControl(map);
+                }
+            }
+        }
+
+         function hidehs(){
+        for (let i = 0; i < hs.length; i++){
+            hs[i].style.display= 'none';
+        }
+
+        console.log("success");
+    }
+    function hsSayTakeTrain(){
+        for (let i = 0; i < bahnhoefe.length; i++){
+            hs[i].style.display = "inline";
+            // hs[i].style.top = TODO: convert the coordinates to pixels on screen
+        }
+    }
+
+</script>
+
+
+<script>
+    if (localStorage.getItem('half_fare_expiry') > Date.now()){
+       document.getElementById('travelpass').innerHTML = "Half Fare <br>Card";
+    }
+    if (localStorage.getItem('travelcard_expiry') > Date.now()){
+        document.getElementById('travelpass').innerHTML = "Unlimited Travel <br>Card";
+    }
+
+    function processGaze(x, y) {  // main loop
+
+            let pixelPosition = [x, y];
+            let longlat= map.layerPointToLatLng(pixelPosition);  // translate pixel coordinates to WGS84
+            let lat = longlat.lat;
+            let long = longlat.lng;
+
+
+
+                // console.log("nr of active buttons: " + activebuttons.length);
+                for (let marker of activebuttons){
+                  //  console.log(marker.text);
+
+                    if (marker.aktiv && ((marker.x_min <= most_recent_x) && (most_recent_x <= marker.x_max)) && (((marker.y_min <= most_recent_y) && (most_recent_y <= marker.y_max)))) {
+                        marker.potential += chargingspeed;
+
+
+                        if (adding_potential) {
+                            marker.potential += 210;
+                            adding_potential = false;
+                            drawGaze(most_recent_x, most_recent_y); // updateScreen if not done already by mode gaze
+
+
+                        }
+                    } else {
+                        marker.potential = Math.max(0, marker.potential - 5);
+                        // marker.potential += 1; this worked here, this means the loop is active
+
+                    }
+
+                    if (marker.potential > 255) {
+                        marker.potential = 0;
+                        eval(marker.functionstring);
+                        break;
+                    }
+
+                }
+
+
+
+            if ((localStorage.getItem("mode") != "intro") && (localStorage.getItem("mode") != "challenge")) {
+                for (let marker of leafletMarkers) {
+
+                    if (marker.aktiv && ((marker.x_min <= long) && (long <= marker.x_max)) && (((marker.y_min <= lat) && (lat <= marker.y_max)))) {
+                        marker.potential += chargingspeed;
+
+                        if (adding_potential) {
+                            marker.potential += 210;
+                            adding_potential = false;
+                            drawGaze(most_recent_x, most_recent_y); // updateScreen if not done already by mode gaze
+                        }
+
+
+                    } else {
+                        marker.potential = Math.max(0, marker.potential - 5);
+                    }
+                    if (marker.potential > 255) {
+                        marker.potential = 0;
+                        eval(marker.functionstring);
+                        break;
+                    }
+                    if (marker.type == "activity") {
+                        console.log(marker.functionstring);  // TODO: which marker doesn't have setStyle
+                        marker.setStyle({color: 'rgb(' + marker.potential.toString() + ', 255, ' + marker.potential.toString() + ')'});
+
+                    } else if (marker.type == "info") {
+                        if (!(marker.visited)) {
+                            marker.setStyle({color: 'rgb(255, ' + marker.potential.toString() + ', ' + marker.potential.toString()});
+
+                        } else {
+                            marker.setStyle({color: 'rgb(' + Math.floor(127 + marker.potential / 2).toString() + ', ' + marker.potential.toString() + ', ' + marker.potential.toString() + ')'});
+
+                        }
+
+                    } else {
+
+                        marker.setStyle({color: 'rgb(' + marker.potential.toString() + ', ' + marker.potential.toString() + ', 0)'});
+                    }
+                }
+            }
+
+            adding_potential = false;
+            drawGaze(x, y);  // update screen
+            most_recent_x = x;
+            most_recent_y = y;
+            // console.log(x)
+            }
+
+
+        let drawingCircle = false;
+        function drawGaze(x, y) {
+            context.font = "20px Arial";
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            if (drawingCircle) {
+                context.beginPath();
+                context.arc(x, y, 20, 0, 2 * Math.PI);
+                context.stroke();
+
+                if (useGaze) {
+                    context.fillText("Gaze ( " + x + " , " + y + " )", 10, 50);
+                } else {
+                    context.fillText("Mouse ( " + x + " , " + y + " )", 10, 50);
+                }
+            }
+
+            for (let marker of activebuttons) {  // TODO: difference between in and of? with in it didn't work
+                if (marker.aktiv) {
+                    context.fillStyle = 'rgb(' + Math.floor(marker.potential).toString() + ', ' + Math.floor(marker.potential).toString() + ', 0)';
+                    context.fillText(marker.text, marker.x_min, marker.y_min - 20);
+
+                    context.fillStyle = 'rgba(' + marker.potential.toString() + ', ' + marker.potential.toString() + ', 0, 0.8)';
+                    context.fillRect(marker.x_min, marker.y_min, marker.width, marker.height);
+                    context.fillStyle = 'rgb(0,0,0)';
+                }
+            }
+
+            if (localStorage.getItem("mode") !="intro"){
+                 context.fillText((money + " CHF"), available_width-100, 50);
+            }
+
+
+
+        }
+
+
+
+
+
+
+
+</script>
+
+
+<!--
+<img id="irishgirl" src="files/irish_girl.png" alt="irishgirl" style="position:absolute;bottom:100px;right:100px">
+-->
+<div id="angela" style="display:none" style="position:absolute; top:100px; right:300px; height:500px">
+    <img id="bodyofangela" src="files/color1.png" alt="bodyoftheperson" style="position:absolute;bottom:100px;right:100px">
+<img id="eyesofangela" src="files/blue.png" alt="eyes" style="position:absolute;bottom:100px;right:100px">
+<svg id="clothesofangela" height="256" width="256" style="position:absolute;bottom:100px;right:100px">
+    <polygon id="dress" points="90,170 145,170 130,100 115,110, 105,100" style="fill:darkred;" />
+
+</svg>
+
+<img id="hairofangela" src="files/blonde.png" alt="hair" style="position:absolute;bottom:100px;right:100px">
+
+</div>
+
+
+
+<div id="person">
+
+<img id="bodyoftheperson" src="files/color2.png" alt="bodyoftheperson" style="position:absolute;bottom:100px;right:100px">
+<img id="eyes" src="files/blue.png" alt="eyes" style="position:absolute;bottom:100px;right:100px">
+<svg id="clothes" height="256" width="256" style="position:absolute;bottom:100px;right:100px">
+    <!-- <polygon id="dress" points="90,170 145,170 130,100 115,110, 105,100" style="fill:blue;" /> -->
+    <polygon id="pants" points="105,185, 105,100, 108,100 108,105 127,105 127,100 131,100 131,185 120,185, 120,155 115,155 115,185" style="fill:blue;" />
+</svg>
+<img id="hair" src="files/browne.png" alt="hair" style="position:absolute;bottom:100px;right:100px">
+    </div>
+
+<script>
+
+
+  if (localStorage.getItem("mode") == "intro") {// anscheineind geht das erst nachdem der div erstellt wurde
+console.log("performing intro");
+    document.getElementById("introdiv").style.display = "block";
+    hidehs();
+    performintro();
+
+  } else {
+    document.getElementById("introdiv").style.display = "none";
+    console.log("hid intro div");
+    console.log(localStorage.getItem('mode'));
+  }
+
+  class Person{  // assign it later to a situation that needs a person.
+      constructor(seed=0){
+          this.seed = seed;
+          //especially for intro
+          this.bodyoftheperson = document.getElementById('bodyoftheperson');
+          this.hair = document.getElementById('hair');
+          this.eyes = document.getElementById('eyes');
+          this.clothes = document.getElementById('clothes');
+      }
+      moveTo(x, y){
+
+      }
+      hide(){
+          for (let item of [this.bodyoftheperson, this.hair, this.eyes, this.clothes]){
+              item.style.display = "none";
+          }
+      }
+      show(){
+
+      }
+  }
+
+
+    class PersonAllgemein{  // assign it later to a situation that needs a person.
+      constructor(east, north, seed=0){
+          this.seed = seed;
+          //hardcoded for intro
+          this.bodyoftheperson = document.createElement("img");
+          this.hair = document.createElement("img");
+          this.eyes = document.createElement('img');
+          this.clothes = document.createElement('svg');
+          this.style = "position:absolute top:100px left:100px";
+      }
+      moveTo(x, y){
+
+      }
+      hide(){
+          for (let item of [this.bodyoftheperson, this.hair, this.eyes, this.clothes]){
+              item.style.display = "none";
+          }
+      }
+      show(){
+
+      }
+  }
+
+  function performelectronical_factory(){  // tic tac toe
+      hidehs();
+
+
+  }
+
+
+  function go_back_from_travelcard(){
+      activebuttons.splice(activebuttons.length - 1); // remove travelcard option
+      activebuttons.splice(activebuttons.length - 1); // remove travelcard option
+      console.log("go_back_from_travelcard()");
+      buytravelcardbutton.text = "Buy a Travel Card";
+      buytravelcardbutton.functionstring = "travelcard()";
+      console.log(activebuttons);
+      continue_to_game();
+
+  }
+
+
+
+  function travelcard(){
+      document.getElementById("introdiv").style.display = "block";
+      localStorage.setItem("mode", "challenge");
+
+      for (let marker of leafletMarkers) {
+                    marker.aktiv = false;
+                }
+
+      console.log("starttravelcardmenue()")
+      buytravelcardbutton.text = "Return to Map";
+      buytravelcardbutton.functionstring = "go_back_from_travelcard()";
+      let travelcardbutton = new Marker("get half price off all travel: "+half_fare_price.toString()+" CHF", available_width * 0.1, parseInt(available_width * 0.5), parseInt(available_height * 0.1), parseInt(available_height * 0.4), 'buy(1, 50); go_back_from_travelcard();');
+      let halffarebutton = new Marker("get unlimited travel card: "+travelcard_price.toString()+" CHF", available_width * 0.1, parseInt(available_width * 0.5), parseInt(available_height * 0.5), parseInt(available_height * 0.8), 'buy(2, 500); go_back_from_travelcard();');
+
+      activebuttons.push(travelcardbutton);
+      activebuttons.push(halffarebutton);
+
+
+  }
+  // let ticketgirl = new PersonAllgemein("didyouknow()");
+
+</script>
+
+
+</body>
+
+</html>
+
